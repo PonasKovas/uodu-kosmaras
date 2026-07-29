@@ -11,3 +11,14 @@ runner = "probe-rs run --chip STM32H723ZE"# --connect-under-reset"
 
 [env]
 DEFMT_LOG = "info"
+
+[alias]
+# --target-dir in order to avoid frequent recompilations when switching between features
+
+# Just type `cargo m0` to build and run the M0 firmware
+m0 = "run -r --features m0 --target-dir target/m0"
+b0 = "build -r --features m0 --target-dir target/m0"
+
+# Just type `cargo m1` to build and run the M1 firmware
+m1 = "run -r --features m1 --target-dir target/m1"
+b1 = "build -r --features m1 --target-dir target/m1"
