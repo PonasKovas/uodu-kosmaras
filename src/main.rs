@@ -25,28 +25,23 @@ fn verify_hardware_uid() {
 
     #[cfg(feature = "m0")]
     {
-        // TODO: Replace with your actual M0 hex array once you read it from the console
-        const EXPECTED_M0_UID: [u8; 12] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+        const EXPECTED_M0_UID: [u8; 12] = [
+            0x33, 0x0, 0x10, 0x0, 0x19, 0x51, 0x31, 0x32, 0x34, 0x35, 0x32, 0x30,
+        ];
 
-        // Uncomment once you put the real serial number above!
-        /*
-        if *uid != EXPECTED_M0_UID {
+        if uid != EXPECTED_M0_UID {
             defmt::panic!("FATAL: M0 firmware flashed onto incorrect hardware! Aborting to prevent pin damage.");
         }
-        */
     }
 
     #[cfg(feature = "m1")]
     {
-        // TODO: Replace with your actual M1 hex array once you read it from the console
-        const EXPECTED_M1_UID: [u8; 12] = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
-
-        // Uncomment once you put the real serial number above!
-        /*
-        if *uid != EXPECTED_M1_UID {
+        const EXPECTED_M1_UID: [u8; 12] = [
+            0x34, 0x0, 0x10, 0x0, 0x19, 0x51, 0x31, 0x32, 0x34, 0x35, 0x32, 0x30,
+        ];
+        if uid != EXPECTED_M1_UID {
             defmt::panic!("FATAL: M1 firmware flashed onto incorrect hardware! Aborting to prevent pin damage.");
         }
-        */
     }
 }
 
@@ -66,9 +61,13 @@ async fn main(spawner: Spawner) {
     let p = embassy_stm32::init(config);
 
     #[cfg(feature = "m0")]
-    spawner.spawn(heartbeat::heartbeat_task(p.PE3.into())).unwrap();
+    spawner
+        .spawn(heartbeat::heartbeat_task(p.PE3.into()))
+        .unwrap();
     #[cfg(feature = "m1")]
-    spawner.spawn(heartbeat::heartbeat_task(p.PE2.into())).unwrap();
+    spawner
+        .spawn(heartbeat::heartbeat_task(p.PE2.into()))
+        .unwrap();
 
     #[cfg(feature = "m0")]
     spawner.spawn(power::power_task(p.PG1, p.PG0)).unwrap();
