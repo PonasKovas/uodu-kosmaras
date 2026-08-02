@@ -1,0 +1,16 @@
+{
+  "files": [
+    { "git": 1 }
+  ],
+  "lspclient": {
+    "servers": {
+      "rust": {
+        "initializationOptions": {
+          "cargo": {
+            "features": ["m0"]
+          }
+        }
+      }
+    }
+  }
+}
