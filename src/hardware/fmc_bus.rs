@@ -2,13 +2,10 @@ use core::mem;
 use embassy_stm32::fmc::Fmc;
 use embassy_stm32::gpio::AfType;
 use embassy_stm32::gpio::Flex;
-use embassy_stm32::gpio::Level;
-use embassy_stm32::gpio::Output;
 use embassy_stm32::gpio::OutputType;
 use embassy_stm32::gpio::Speed;
 use embassy_stm32::peripherals::*;
 use embassy_stm32::Peri;
-use embassy_time::Timer;
 use stm32_metapac as pac;
 
 const LCD_BASE: usize = 0x6000_0000; // FMC Bank 1/1
@@ -16,9 +13,9 @@ const RS_ADDR_LINE: u32 = 22; // DCX wired to FMC_A22
 const LCD_CMD_ADDR: usize = LCD_BASE;
 const LCD_DATA_ADDR: usize = LCD_BASE | (1usize << (RS_ADDR_LINE + 1));
 
-pub struct DisplayFMC {}
+pub struct FmcBus {}
 
-impl DisplayFMC {
+impl FmcBus {
     pub fn new(
         fmc: Peri<'static, FMC>,
         d0: Peri<'static, PD14>,
@@ -102,26 +99,24 @@ impl DisplayFMC {
         Self {}
     }
 
-    #[allow(unused)]
     #[inline(always)]
     pub fn write_cmd(&mut self, cmd: u8) {
         unsafe { core::ptr::write_volatile(LCD_CMD_ADDR as *mut u16, cmd as u16) };
     }
 
-    #[allow(unused)]
     #[inline(always)]
     pub fn write_data(&mut self, data: u16) {
         unsafe { core::ptr::write_volatile(LCD_DATA_ADDR as *mut u16, data) };
     }
 
-    #[allow(unused)]
+    #[allow(dead_code)]
     pub fn write_data_slice(&mut self, data: &[u16]) {
         for &d in data {
             self.write_data(d);
         }
     }
 
-    #[allow(unused)]
+    #[allow(dead_code)]
     #[inline(always)]
     pub fn read_data(&mut self) -> u16 {
         unsafe { core::ptr::read_volatile(LCD_DATA_ADDR as *const u16) }
