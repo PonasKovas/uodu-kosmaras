@@ -2,9 +2,9 @@ use embassy_stm32::rcc::*;
 use embassy_stm32::time::Hertz;
 
 pub fn rcc_config() -> embassy_stm32::rcc::Config {
-	let mut rcc = embassy_stm32::rcc::Config::new();
+    let mut rcc = embassy_stm32::rcc::Config::new();
 
-	// Scale0 is required for high-frequency operation (> 400 MHz)
+    // Scale0 is required for high-frequency operation (> 400 MHz)
     rcc.voltage_scale = VoltageScale::Scale0;
 
     // 1. Configure 25 MHz HSE in Bypass Mode
@@ -31,5 +31,5 @@ pub fn rcc_config() -> embassy_stm32::rcc::Config {
     rcc.apb3_pre = APBPrescaler::DIV2; // 260 / 2 = 130 MHz
     rcc.apb4_pre = APBPrescaler::DIV2; // 260 / 2 = 130 MHz
 
-	rcc
+    rcc
 }

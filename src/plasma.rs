@@ -72,8 +72,8 @@ pub async fn plasma_task(mut display: St7796) {
 
             for x in 0..320u16 {
                 let x_wave = sin_lut[(x as u8).wrapping_add(t1) as usize] as usize;
-                let xy_wave = sin_lut[((x.wrapping_add(y) >> 1) as u8).wrapping_add(t3) as usize]
-                    as usize;
+                let xy_wave =
+                    sin_lut[((x.wrapping_add(y) >> 1) as u8).wrapping_add(t3) as usize] as usize;
 
                 // Combine 3 sine waves into a 0..255 index
                 let palette_idx = (x_wave + y_wave + xy_wave) & 0xFF;

@@ -8,10 +8,7 @@ use embassy_stm32::peripherals::*;
 use embassy_stm32::Peri;
 use stm32_metapac as pac;
 
-const LCD_BASE: usize = 0x6000_0000; // FMC Bank 1/1
-const RS_ADDR_LINE: u32 = 22; // DCX wired to FMC_A22
-const LCD_CMD_ADDR: usize = LCD_BASE;
-const LCD_DATA_ADDR: usize = LCD_BASE | (1usize << (RS_ADDR_LINE + 1));
+const BANK1_BASE: usize = 0x6000_0000; // FMC Bank 1/1 (NE1)
 
 pub struct FmcBus {}
 
@@ -34,10 +31,10 @@ impl FmcBus {
         d13: Peri<'static, PD8>,
         d14: Peri<'static, PD9>,
         d15: Peri<'static, PD10>,
-        csx: Peri<'static, PD7>,
-        dcx: Peri<'static, PE6>,
-        wrx: Peri<'static, PD5>,
-        rdx: Peri<'static, PD4>,
+        ne1: Peri<'static, PD7>,
+        a22: Peri<'static, PE6>,
+        nwe: Peri<'static, PD5>,
+        noe: Peri<'static, PD4>,
     ) -> Self {
         init_fmc_pin(d0);
         init_fmc_pin(d1);
@@ -49,22 +46,24 @@ impl FmcBus {
         init_fmc_pin(d7);
         init_fmc_pin(d8);
         init_fmc_pin(d9);
-        init_fmc_pin(d14);
         init_fmc_pin(d10);
         init_fmc_pin(d11);
         init_fmc_pin(d12);
         init_fmc_pin(d13);
+        init_fmc_pin(d14);
         init_fmc_pin(d15);
 
-        init_fmc_pin(csx);
-        init_fmc_pin(dcx);
-        init_fmc_pin(wrx);
-        init_fmc_pin(rdx);
+        init_fmc_pin(ne1);
+        init_fmc_pin(a22);
+        init_fmc_pin(nwe);
+        init_fmc_pin(noe);
 
         let mut fmc = Fmc::new_raw(fmc);
         fmc.enable();
         fmc.memory_controller_enable();
 
+        // 16-bit async SRAM, no address/data mux, no burst, separate
+        // read/write timing (extended mode)
         pac::FMC.bcr1().modify(|w| {
             w.set_mbken(true);
             w.set_muxen(false);
@@ -79,47 +78,43 @@ impl FmcBus {
             w.set_cburstrw(false);
         });
 
-        // Write Timing for ST7796 @ 260 MHz FMC Clock (~73ns total cycle)
-        pac::FMC.bwtr(0).modify(|w| {
-            w.set_accmod(pac::fmc::vals::Accmod::A);
-            w.set_addset(3); // 15.38 ns setup
-            w.set_addhld(0);
-            w.set_datast(14); // 57.69 ns pulse
-        });
-
-        // Read Timing for ST7796 @ 260 MHz FMC Clock (~465ns total cycle)
-        pac::FMC.btr(0).modify(|w| {
-            w.set_accmod(pac::fmc::vals::Accmod::A);
-            w.set_addset(4); // 19.23 ns setup
-            w.set_addhld(0);
-            w.set_datast(115); // 446.14 ns pulse
-            w.set_busturn(2); // 7.69 ns bus turnaround
-        });
-
         Self {}
     }
 
-    #[inline(always)]
-    pub fn write_cmd(&mut self, cmd: u8) {
-        unsafe { core::ptr::write_volatile(LCD_CMD_ADDR as *mut u16, cmd as u16) };
+    /// Write-cycle timing in HCLK cycles (async mode A): address setup +
+    /// data pulse duration
+    pub fn set_write_timing(&mut self, addset: u8, datast: u8) {
+        pac::FMC.bwtr(0).modify(|w| {
+            w.set_accmod(pac::fmc::vals::Accmod::A);
+            w.set_addset(addset);
+            w.set_addhld(0);
+            w.set_datast(datast);
+        });
     }
 
-    #[inline(always)]
-    pub fn write_data(&mut self, data: u16) {
-        unsafe { core::ptr::write_volatile(LCD_DATA_ADDR as *mut u16, data) };
+    /// Read-cycle timing in HCLK cycles (async mode A): address setup +
+    /// data pulse duration + bus turnaround
+    pub fn set_read_timing(&mut self, addset: u8, datast: u8, busturn: u8) {
+        pac::FMC.btr(0).modify(|w| {
+            w.set_accmod(pac::fmc::vals::Accmod::A);
+            w.set_addset(addset);
+            w.set_addhld(0);
+            w.set_datast(datast);
+            w.set_busturn(busturn);
+        });
     }
 
+    /// Write a 16-bit word at `offset` bytes into Bank 1
+    #[inline(always)]
+    pub fn write(&mut self, offset: usize, value: u16) {
+        unsafe { core::ptr::write_volatile((BANK1_BASE + offset) as *mut u16, value) };
+    }
+
+    /// Read a 16-bit word from `offset` bytes into Bank 1
     #[allow(dead_code)]
-    pub fn write_data_slice(&mut self, data: &[u16]) {
-        for &d in data {
-            self.write_data(d);
-        }
-    }
-
-    #[allow(dead_code)]
     #[inline(always)]
-    pub fn read_data(&mut self) -> u16 {
-        unsafe { core::ptr::read_volatile(LCD_DATA_ADDR as *const u16) }
+    pub fn read(&mut self, offset: usize) -> u16 {
+        unsafe { core::ptr::read_volatile((BANK1_BASE + offset) as *const u16) }
     }
 }
 
