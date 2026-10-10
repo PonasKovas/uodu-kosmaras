@@ -33,7 +33,9 @@ async fn main(spawner: Spawner) {
         .spawn(heartbeat::heartbeat_task(p.PE3.into()))
         .unwrap();
 
-    spawner.spawn(power::power_task(p.PG1, p.PG0)).unwrap();
+    spawner
+        .spawn(power::power_task(p.PG1, p.PG0, p.EXTI0))
+        .unwrap();
 
     let display = St7796::init(
         p.FMC, p.PD14, p.PD15, p.PD0, p.PD1, p.PE7, p.PE8, p.PE9, p.PE10, p.PE11, p.PE12, p.PE13,
