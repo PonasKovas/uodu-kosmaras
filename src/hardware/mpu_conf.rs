@@ -1,10 +1,9 @@
-pub fn configure_mpu(mpu: cortex_m::peripheral::MPU) {
+pub fn configure_mpu(mpu: cortex_m::peripheral::MPU, fmc_region: bool) {
     unsafe {
         // Disable MPU during setup
         mpu.ctrl.write(0);
 
-        #[cfg(feature = "m0")]
-        {
+        if fmc_region {
             // Configure Region 0 for FMC Bank 1
             mpu.rnr.write(0);
             mpu.rbar.write(0x6000_0000);

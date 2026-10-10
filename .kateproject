@@ -6,9 +6,7 @@
     "servers": {
       "rust": {
         "initializationOptions": {
-          "cargo": {
-            "features": ["m0"]
-          }
+          "cargo": {}
         }
       }
     }
