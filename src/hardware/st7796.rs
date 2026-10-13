@@ -18,6 +18,7 @@ const CMD_RASET: u8 = 0x2B; // Row address window
 const CMD_INVON: u8 = 0x21; // Display inversion on (IPS panel)
 const CMD_DISPON: u8 = 0x29; // Display on
 const CMD_RAMWR: u8 = 0x2C; // Memory write
+const CMD_TEON: u8 = 0x35; // Tearing Effect ON
 
 pub const WIDTH: u16 = 320;
 pub const HEIGHT: u16 = 480;
@@ -90,6 +91,10 @@ impl St7796 {
         panel.write_cmd(CMD_MADCTL);
         panel.write_data(0x48);
 
+        // Enable Tearing Effect output (Mode 1: V-Blank only)
+        panel.write_cmd(CMD_TEON);
+        panel.write_data(0x00);
+
         // Default full-screen window
         panel.set_window(0, 0, WIDTH - 1, HEIGHT - 1);
 
@@ -138,6 +143,11 @@ impl St7796 {
     #[inline(always)]
     fn write_cmd(&mut self, cmd: u8) {
         self.bus.write(CMD_OFFSET, cmd as u16);
+    }
+
+    /// Returns the absolute hardware address of the FMC data register
+    pub fn data_ptr() -> *mut u16 {
+        (fmc_bus::BANK1_BASE + DATA_OFFSET) as *mut u16
     }
 
     #[inline(always)]

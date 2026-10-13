@@ -27,7 +27,8 @@ async fn main(spawner: Spawner) {
     let p = embassy_stm32::init(config);
     let core_peri = cortex_m::Peripherals::take().unwrap();
 
-    configure_mpu(core_peri.MPU, true);
+    let dma_buf_addr = unsafe { core::ptr::addr_of!(uodu_kosmaras::plasma::DMA_BUFFERS) as u32 };
+    configure_mpu(core_peri.MPU, true, Some(dma_buf_addr));
 
     spawner
         .spawn(heartbeat::heartbeat_task(p.PE3.into()))
@@ -43,7 +44,13 @@ async fn main(spawner: Spawner) {
     )
     .await;
 
-    // spawner.spawn(plasma::plasma_task(display)).unwrap();
+    let mdma = uodu_kosmaras::hardware::mdma::MdmaCh0::new();
+
+    spawner
+        .spawn(uodu_kosmaras::plasma::plasma_task(
+            display, p.PD12, p.EXTI12, mdma,
+        ))
+        .unwrap();
 
     core::future::pending::<()>().await;
 }

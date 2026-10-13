@@ -1,4 +1,8 @@
-pub fn configure_mpu(mpu: cortex_m::peripheral::MPU, fmc_region: bool) {
+pub fn configure_mpu(
+    mpu: cortex_m::peripheral::MPU,
+    fmc_region: bool,
+    dma_buffer_addr: Option<u32>,
+) {
     unsafe {
         // Disable MPU during setup
         mpu.ctrl.write(0);
@@ -16,6 +20,25 @@ pub fn configure_mpu(mpu: cortex_m::peripheral::MPU, fmc_region: bool) {
             (1 << 16) | // B (Device Memory)
             (27 << 1) | // Size (256MB)
             1, // Enable
+            );
+        }
+
+        if let Some(addr) = dma_buffer_addr {
+            // Configure Region 1 for the DMA Buffer (2 KB)
+            mpu.rnr.write(1);
+            mpu.rbar.write(addr);
+
+            // Normal Memory, Non-Cacheable, Shared
+            // Size = 2KB, AP = Full Access, XN = Execute Never
+            mpu.rasr.write(
+                (1 << 28) | // XN
+                (3 << 24) | // AP
+                (1 << 19) | // TEX=001 (Normal memory)
+                (1 << 18) | // S=1 (Shared)
+                (0 << 17) | // C=0 (Non-cacheable)
+                (0 << 16) | // B=0
+                (10 << 1) | // Size (2KB)
+                1, // Enable
             );
         }
 

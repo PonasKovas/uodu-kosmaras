@@ -1,9 +1,33 @@
 use embassy_executor::task;
-use embassy_time::Duration;
-use embassy_time::Instant;
-use embassy_time::Timer;
+use embassy_stm32::bind_interrupts;
+use embassy_stm32::exti::{ExtiInput, InterruptHandler};
+use embassy_stm32::gpio::Pull;
+use embassy_stm32::interrupt::typelevel::EXTI15_10 as IrqExti15_10;
+use embassy_stm32::peripherals::{EXTI12, PD12};
+use embassy_stm32::Peri;
 
+use crate::hardware::mdma::MdmaCh0;
 use crate::hardware::st7796::St7796;
+
+bind_interrupts!(pub struct TeIrqs {
+    EXTI15_10 => InterruptHandler<IrqExti15_10>;
+});
+
+/// A double-buffer containing two 320-pixel 16-bit lines (1280 bytes total).
+/// Must be exactly padded and aligned to 2048 bytes for the Cortex-M7 MPU region
+/// so that surrounding variables do not accidentally become un-cached.
+#[repr(C, align(2048))]
+pub struct LineBuffers {
+    pub buf_a: [u16; 320],
+    pub buf_b: [u16; 320],
+    pub _pad: [u16; 1024 - 640], // Pad remainder up to 2048 bytes
+}
+
+pub static mut DMA_BUFFERS: LineBuffers = LineBuffers {
+    buf_a: [0; 320],
+    buf_b: [0; 320],
+    _pad: [0; 384],
+};
 
 /// Generates a smooth 256-color RGB565 rainbow palette using pure integer math
 fn generate_palette() -> [u16; 256] {
@@ -49,8 +73,34 @@ fn generate_sin_lut() -> [u8; 256] {
     lut
 }
 
+#[inline(always)]
+fn compute_line(
+    buf: &mut [u16; 320],
+    y: u16,
+    t1: u8,
+    t2: u8,
+    t3: u8,
+    sin_lut: &[u8; 256],
+    palette: &[u16; 256],
+) {
+    let y_wave = sin_lut[((y >> 1) as u8).wrapping_add(t2) as usize] as usize;
+    for x in 0..320u16 {
+        let x_wave = sin_lut[(x as u8).wrapping_add(t1) as usize] as usize;
+        let xy_wave = sin_lut[((x.wrapping_add(y) >> 1) as u8).wrapping_add(t3) as usize] as usize;
+        let palette_idx = (x_wave + y_wave + xy_wave) & 0xFF;
+        buf[x as usize] = palette[palette_idx];
+    }
+}
+
 #[task]
-pub async fn plasma_task(mut display: St7796) {
+pub async fn plasma_task(
+    mut display: St7796,
+    te_pin: Peri<'static, PD12>,
+    exti: Peri<'static, EXTI12>,
+    mut mdma: MdmaCh0,
+) {
+    let mut te_input = ExtiInput::new(te_pin, exti, Pull::None, TeIrqs);
+
     // 1. Initialize LUTs once on startup
     let sin_lut = generate_sin_lut();
     let palette = generate_palette();
@@ -60,38 +110,47 @@ pub async fn plasma_task(mut display: St7796) {
     let mut t2: u8 = 0;
     let mut t3: u8 = 0;
 
-    let target_frame_time = Duration::from_millis(16); // ~60 FPS
-
     loop {
-        let frame_start = Instant::now();
+        // 2. Wait for display V-BLANK (Tearing Effect falling edge)
+        te_input.wait_for_falling_edge().await;
 
-        // 2. Render Plasma Frame
+        // Reset display pointer to start of screen
+        display.set_window(0, 0, 319, 479);
+
+        let bufs = unsafe { core::ptr::addr_of_mut!(DMA_BUFFERS).as_mut().unwrap() };
+        let dest_ptr = St7796::data_ptr();
+
+        // Prime the very first line
+        compute_line(&mut bufs.buf_a, 0, t1, t2, t3, &sin_lut, &palette);
+
+        // 3. Render Plasma Frame Line-by-Line using Ping-Pong DMA
         for y in 0..480u16 {
-            // Precalculate Y-wave once per row to save CPU cycles
-            let y_wave = sin_lut[((y >> 1) as u8).wrapping_add(t2) as usize] as usize;
+            let current_buf = if y % 2 == 0 {
+                bufs.buf_a.as_ptr()
+            } else {
+                bufs.buf_b.as_ptr()
+            };
 
-            for x in 0..320u16 {
-                let x_wave = sin_lut[(x as u8).wrapping_add(t1) as usize] as usize;
-                let xy_wave =
-                    sin_lut[((x.wrapping_add(y) >> 1) as u8).wrapping_add(t3) as usize] as usize;
+            // Launch DMA for the current line
+            mdma.start_memory_to_peripheral_16bit(current_buf, dest_ptr, 320);
 
-                // Combine 3 sine waves into a 0..255 index
-                let palette_idx = (x_wave + y_wave + xy_wave) & 0xFF;
-
-                // Push 16-bit RGB565 pixel straight to FMC
-                display.write_pixel(palette[palette_idx]);
+            // While DMA pushes the current line to the screen, CPU computes the NEXT line
+            if y < 479 {
+                let next_buf = if y % 2 == 0 {
+                    &mut bufs.buf_b
+                } else {
+                    &mut bufs.buf_a
+                };
+                compute_line(next_buf, y + 1, t1, t2, t3, &sin_lut, &palette);
             }
+
+            // Yield to executor and wait for this line's DMA to finish
+            mdma.wait_complete().await;
         }
 
-        // 3. Advance plasma animation speeds
+        // 4. Advance plasma animation speeds
         t1 = t1.wrapping_add(2);
         t2 = t2.wrapping_add(3);
         t3 = t3.wrapping_add(1);
-
-        // 4. Frame Pacing (Ensures constant 60 FPS)
-        let frame_duration = frame_start.elapsed();
-        if frame_duration < target_frame_time {
-            Timer::after(target_frame_time - frame_duration).await;
-        }
     }
 }

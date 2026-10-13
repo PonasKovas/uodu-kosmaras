@@ -27,7 +27,7 @@ async fn main(spawner: Spawner) {
     let p = embassy_stm32::init(config);
     let core_peri = cortex_m::Peripherals::take().unwrap();
 
-    configure_mpu(core_peri.MPU, false);
+    configure_mpu(core_peri.MPU, false, None);
 
     spawner
         .spawn(heartbeat::heartbeat_task(p.PE2.into()))

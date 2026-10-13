@@ -8,7 +8,7 @@ use embassy_stm32::peripherals::*;
 use embassy_stm32::Peri;
 use stm32_metapac as pac;
 
-const BANK1_BASE: usize = 0x6000_0000; // FMC Bank 1/1 (NE1)
+pub const BANK1_BASE: usize = 0x6000_0000; // FMC Bank 1/1 (NE1)
 
 pub struct FmcBus {}
 
