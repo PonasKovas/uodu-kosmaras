@@ -28,7 +28,10 @@ pub async fn power_task(
 
     // 3. If the user is holding the power button down from turning the device ON,
     // wait for them to release it first so we don't immediately shut down.
-    pwr_btn.wait_for_high().await;
+    while pwr_btn.is_low() {
+        Timer::after_millis(10).await;
+    }
+    Timer::after_millis(DEBOUNCE_MS).await;
 
     info!("Power management active. Waiting for PWR_BTN (PG0) press to shut down...");
 

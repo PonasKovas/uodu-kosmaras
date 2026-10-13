@@ -43,7 +43,7 @@ async fn main(spawner: Spawner) {
     )
     .await;
 
-    spawner.spawn(plasma::plasma_task(display)).unwrap();
+    // spawner.spawn(plasma::plasma_task(display)).unwrap();
 
     core::future::pending::<()>().await;
 }
