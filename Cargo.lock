@@ -236,7 +236,7 @@ version = "0.6.0"
 source = "git+https://github.com/embassy-rs/embassy?rev=2863392978810ec86aa6a59f890b2389a77203fa#2863392978810ec86aa6a59f890b2389a77203fa"
 dependencies = [
  "embassy-futures",
- "embassy-sync",
+ "embassy-sync 0.8.0 (git+https://github.com/embassy-rs/embassy?rev=2863392978810ec86aa6a59f890b2389a77203fa)",
  "embassy-time",
  "embedded-hal 0.2.7",
  "embedded-hal 1.0.0",
@@ -312,7 +312,7 @@ dependencies = [
  "embassy-embedded-hal",
  "embassy-futures",
  "embassy-hal-internal",
- "embassy-sync",
+ "embassy-sync 0.8.0 (git+https://github.com/embassy-rs/embassy?rev=2863392978810ec86aa6a59f890b2389a77203fa)",
  "embassy-time",
  "embassy-time-driver",
  "embassy-time-queue-utils",
@@ -345,6 +345,20 @@ dependencies = [
  "trait-set",
  "vcell",
  "xarxa-driver",
+]
+
+[[package]]
+name = "embassy-sync"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7bbd85cf5a5ae56bdf26f618364af642d1d0a4e245cdd75cd9aabda382f65a81"
+dependencies = [
+ "cfg-if",
+ "critical-section",
+ "embedded-io-async 0.7.0",
+ "futures-core",
+ "futures-sink",
+ "heapless",
 ]
 
 [[package]]
@@ -409,7 +423,7 @@ version = "0.4.0"
 source = "git+https://github.com/embassy-rs/embassy?rev=2863392978810ec86aa6a59f890b2389a77203fa#2863392978810ec86aa6a59f890b2389a77203fa"
 dependencies = [
  "document-features",
- "embassy-sync",
+ "embassy-sync 0.8.0 (git+https://github.com/embassy-rs/embassy?rev=2863392978810ec86aa6a59f890b2389a77203fa)",
  "embassy-usb-driver",
  "portable-atomic",
 ]
@@ -881,6 +895,7 @@ dependencies = [
  "defmt-rtt",
  "embassy-executor",
  "embassy-stm32",
+ "embassy-sync 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "embassy-time",
  "panic-probe",
  "stm32-metapac 21.0.0 (registry+https://github.com/rust-lang/crates.io-index)",

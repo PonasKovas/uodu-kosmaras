@@ -1,13 +1,44 @@
 use core::future::poll_fn;
 use core::task::Poll;
+use embassy_stm32::interrupt;
+use embassy_stm32::interrupt::typelevel::Interrupt;
+use embassy_sync::waitqueue::AtomicWaker;
 use stm32_metapac as pac;
+use stm32_metapac::mdma::vals;
+
+static MDMA_WAKER: AtomicWaker = AtomicWaker::new();
+
+pub struct MdmaInterruptHandler;
+
+impl interrupt::typelevel::Handler<interrupt::typelevel::MDMA> for MdmaInterruptHandler {
+    unsafe fn on_interrupt() {
+        let ch = pac::MDMA.ch(0);
+
+        // Disable the interrupt to prevent re-triggering
+        ch.cr().modify(|w| w.set_ctcie(false));
+
+        // Clear the channel transfer complete flag
+        ch.ifcr().write(|w| w.set_cctcif(true));
+
+        MDMA_WAKER.wake();
+    }
+}
 
 pub struct MdmaCh0;
 
 impl MdmaCh0 {
-    pub fn new() -> Self {
-        // Enable MDMA clock on AHB3
+    pub fn new(
+        _irq: impl interrupt::typelevel::Binding<interrupt::typelevel::MDMA, MdmaInterruptHandler>,
+    ) -> Self {
         pac::RCC.ahb3enr().modify(|w| w.set_mdmaen(true));
+
+        // Safely enable the MDMA interrupt in the NVIC.
+        // The unsafe block is required by the HAL, but it is architecturally
+        // safe here because the _irq binding ensures a valid handler exists.
+        unsafe {
+            interrupt::typelevel::MDMA::enable();
+        }
+
         Self
     }
 
@@ -23,43 +54,48 @@ impl MdmaCh0 {
         let ch = pac::MDMA.ch(0);
 
         // Clear all pending interrupt flags
-        ch.ifcr().write_value(pac::mdma::regs::Ifcr(0x1F));
+        ch.ifcr().write(|w| {
+            w.set_cteif(true);
+            w.set_cctcif(true);
+            w.set_cbrtif(true);
+            w.set_cbtif(true);
+            w.set_cltcif(true);
+        });
 
         ch.sar().write_value(pac::mdma::regs::Sar(src_addr as u32));
         ch.dar().write_value(pac::mdma::regs::Dar(dst_addr as u32));
         ch.bndtr().modify(|w| w.set_bndt(len_halfwords * 2));
 
-        // TCR: SSIZE=01, SINC=01, DSIZE=01, DINC=00, TRGM=01, SWRM=1
-        ch.tcr().write_value(pac::mdma::regs::Tcr(0x0141000A));
+        ch.tcr().write(|w| {
+            w.set_sinc(vals::Incmode::INCREMENT);
+            w.set_dinc(vals::Incmode::FIXED);
+            w.set_ssize(vals::Wordsize::HALF_WORD);
+            w.set_dsize(vals::Wordsize::HALF_WORD);
+            w.set_trgm(vals::Trgm::BUFFER);
+            w.set_swrm(true);
+        });
 
-        // Enable channel and trigger software request
-        ch.cr().modify(|w| w.set_en(true));
-        ch.cr().modify(|w| w.set_swrq(true));
+        // Enable channel, interrupt, and trigger software request
+        ch.cr().modify(|w| {
+            w.set_ctcie(true);
+            w.set_en(true);
+            w.set_swrq(true);
+        });
     }
 
     /// Yields to the Embassy executor until the transfer completes.
     pub async fn wait_complete(&mut self) {
         let ch = pac::MDMA.ch(0);
 
-        // Hardware clears EN automatically when the transfer finishes.
-        while ch.cr().read().en() {
-            yield_now().await;
-        }
-
-        // Clear transfer complete flags
-        ch.ifcr().write_value(pac::mdma::regs::Ifcr(0x1F));
+        poll_fn(|cx| {
+            MDMA_WAKER.register(cx.waker());
+            
+            // Hardware clears EN automatically when the transfer finishes.
+            if !ch.cr().read().en() {
+                Poll::Ready(())
+            } else {
+                Poll::Pending
+            }
+        }).await;
     }
-}
-
-pub async fn yield_now() {
-    let mut yielded = false;
-    poll_fn(|cx| {
-        if yielded {
-            Poll::Ready(())
-        } else {
-            yielded = true;
-            cx.waker().wake_by_ref();
-            Poll::Pending
-        }
-    }).await;
 }

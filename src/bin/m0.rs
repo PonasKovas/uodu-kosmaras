@@ -9,7 +9,11 @@ use panic_probe as _;
 use uodu_kosmaras::hardware::mpu_conf::configure_mpu;
 use uodu_kosmaras::hardware::rcc::rcc_config;
 use uodu_kosmaras::hardware::st7796::St7796;
-use uodu_kosmaras::{heartbeat, plasma, power, verify_hardware_uid};
+use uodu_kosmaras::{heartbeat, power, verify_hardware_uid};
+
+embassy_stm32::bind_interrupts!(struct MdmaIrqs {
+    MDMA => uodu_kosmaras::hardware::mdma::MdmaInterruptHandler;
+});
 
 const EXPECTED_M0_UID: [u8; 12] = [
     0x33, 0x0, 0x10, 0x0, 0x19, 0x51, 0x31, 0x32, 0x34, 0x35, 0x32, 0x30,
@@ -27,7 +31,7 @@ async fn main(spawner: Spawner) {
     let p = embassy_stm32::init(config);
     let core_peri = cortex_m::Peripherals::take().unwrap();
 
-    let dma_buf_addr = unsafe { core::ptr::addr_of!(uodu_kosmaras::plasma::DMA_BUFFERS) as u32 };
+    let dma_buf_addr = core::ptr::addr_of!(uodu_kosmaras::plasma::DMA_BUFFERS) as u32;
     configure_mpu(core_peri.MPU, true, Some(dma_buf_addr));
 
     spawner
@@ -44,7 +48,7 @@ async fn main(spawner: Spawner) {
     )
     .await;
 
-    let mdma = uodu_kosmaras::hardware::mdma::MdmaCh0::new();
+    let mdma = uodu_kosmaras::hardware::mdma::MdmaCh0::new(MdmaIrqs);
 
     spawner
         .spawn(uodu_kosmaras::plasma::plasma_task(
