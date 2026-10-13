@@ -46,7 +46,7 @@ pub async fn regulator_task(
 
     let mut dac_ch2: DacChannel<'static, Blocking> =
         DacChannel::new_internal_blocking::<DAC1, Ch2>(dac1);
-    dac_ch2.set(embassy_stm32::dac::Value::Bit12Right(DAC_VALUE));
+    dac_ch2.set(embassy_stm32::dac::u12r(DAC_VALUE));
 
     // ------------------------------------------------------------------------
     // 3. Configure OPAMP2 via PAC

@@ -11,8 +11,8 @@ defmt-rtt = "1.0.0"
 panic-probe = { version = "1.0.0", features = ["print-defmt"] }
 
 embassy-executor = { version = "0.7", features = ["arch-cortex-m", "executor-thread"] }
-embassy-stm32 = { version = "0.6", features = ["stm32h723ze", "time-driver-any", "memory-x", "exti"] }
-embassy-time = { version = "0.5", features = ["generic-queue-64", "defmt", "defmt-timestamp-uptime"] }
+embassy-stm32 = { git = "https://github.com/embassy-rs/embassy", rev = "2863392978810ec86aa6a59f890b2389a77203fa", features = ["stm32h723ze", "time-driver-any", "memory-x", "exti"] }
+embassy-time = { git = "https://github.com/embassy-rs/embassy", rev = "2863392978810ec86aa6a59f890b2389a77203fa", features = ["generic-queue-64", "defmt", "defmt-timestamp-uptime"] }
 stm32-metapac = { version = "21.0.0", features = ["stm32h723ze"] }
 
 [profile.release]
