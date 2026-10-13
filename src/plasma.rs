@@ -101,6 +101,9 @@ pub async fn plasma_task(
 ) {
     let mut te_input = ExtiInput::new(te_pin, exti, Pull::None, TeIrqs);
 
+    use defmt::error;
+    use embassy_time::{with_timeout, Duration};
+
     // 1. Initialize LUTs once on startup
     let sin_lut = generate_sin_lut();
     let palette = generate_palette();
@@ -112,7 +115,10 @@ pub async fn plasma_task(
 
     loop {
         // 2. Wait for display V-BLANK (Tearing Effect falling edge)
-        te_input.wait_for_falling_edge().await;
+        match with_timeout(Duration::from_millis(100), te_input.wait_for_falling_edge()).await {
+            Ok(_) => {}
+            Err(_) => error!("TE Timeout! Is the TE pin pulsing?"),
+        }
 
         // Reset display pointer to start of screen
         display.set_window(0, 0, 319, 479);
@@ -145,7 +151,13 @@ pub async fn plasma_task(
             }
 
             // Yield to executor and wait for this line's DMA to finish
-            mdma.wait_complete().await;
+            match with_timeout(Duration::from_millis(10), mdma.wait_complete()).await {
+                Ok(_) => {}
+                Err(_) => {
+                    error!("MDMA Timeout on line {}!", y);
+                    break; // Break the line loop to avoid spamming 480 errors
+                }
+            }
         }
 
         // 4. Advance plasma animation speeds

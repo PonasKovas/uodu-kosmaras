@@ -72,6 +72,10 @@ impl MdmaCh0 {
             w.set_ssize(vals::Wordsize::HALF_WORD);
             w.set_dsize(vals::Wordsize::HALF_WORD);
             w.set_trgm(vals::Trgm::BUFFER);
+            w.set_trgm(vals::Trgm::BLOCK);
+            // TLEN represents (N + 1) bytes. 127 = 128 bytes per buffer.
+            // 640 byte line / 128 = exactly 5 chunks.
+            w.set_tlen(127);
             w.set_swrm(true);
         });
 
@@ -89,13 +93,14 @@ impl MdmaCh0 {
 
         poll_fn(|cx| {
             MDMA_WAKER.register(cx.waker());
-            
+
             // Hardware clears EN automatically when the transfer finishes.
             if !ch.cr().read().en() {
                 Poll::Ready(())
             } else {
                 Poll::Pending
             }
-        }).await;
+        })
+        .await;
     }
 }
