@@ -20,8 +20,8 @@ const CMD_DISPON: u8 = 0x29; // Display on
 const CMD_RAMWR: u8 = 0x2C; // Memory write
 const CMD_TEON: u8 = 0x35; // Tearing Effect ON
 
-pub const WIDTH: u16 = 320;
-pub const HEIGHT: u16 = 480;
+pub const WIDTH: u16 = 480;
+pub const HEIGHT: u16 = 320;
 
 // DCX wired to FMC_A22; 16-bit accesses shift FMC addresses left by one, so
 // the data window sits at address bit 23
@@ -89,7 +89,7 @@ impl St7796 {
 
         // Memory Access Control: orientation + RGB vs BGR order
         panel.write_cmd(CMD_MADCTL);
-        panel.write_data(0x48);
+        panel.write_data(0x28); // Landscape (MV=1) + BGR=1
 
         // Enable Tearing Effect output (Mode 1: V-Blank only)
         panel.write_cmd(CMD_TEON);
@@ -101,14 +101,13 @@ impl St7796 {
         // Invert pixel values since this is an IPS screen
         panel.write_cmd(CMD_INVON);
 
-        // Display ON
-        panel.write_cmd(CMD_DISPON);
-        Timer::after_millis(20).await;
-
-        // Start memory write
-        panel.write_cmd(CMD_RAMWR);
-
         panel
+    }
+
+    /// Turn the panel on. Call after GRAM has been cleared.
+    pub async fn display_on(&mut self) {
+        self.write_cmd(CMD_DISPON);
+        Timer::after_millis(20).await;
     }
 
     /// Set the active drawing window and enter RAMWR mode

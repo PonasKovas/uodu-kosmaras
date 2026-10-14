@@ -71,11 +71,12 @@ impl MdmaCh0 {
             w.set_dinc(vals::Incmode::FIXED);
             w.set_ssize(vals::Wordsize::HALF_WORD);
             w.set_dsize(vals::Wordsize::HALF_WORD);
-            w.set_trgm(vals::Trgm::BUFFER);
             w.set_trgm(vals::Trgm::BLOCK);
-            // TLEN represents (N + 1) bytes. 127 = 128 bytes per buffer.
-            // 640 byte line / 128 = exactly 5 chunks.
-            w.set_tlen(127);
+            w.set_sincos(vals::Wordsize::HALF_WORD); // source steps 2 bytes per transfer
+            w.set_dincos(vals::Wordsize::HALF_WORD); // ignored with DINC=FIXED, set for consistency
+            // TLEN represents (N + 1) bytes. 63 = 64 bytes per buffer.
+            // 960 byte line / 64 = exactly 15 chunks. (Also works for 640 / 64 = 10).
+            w.set_tlen(63);
             w.set_swrm(true);
         });
 
