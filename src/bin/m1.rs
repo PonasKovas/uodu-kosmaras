@@ -25,9 +25,10 @@ async fn main(spawner: Spawner) {
     config.rcc = rcc_config();
 
     let p = embassy_stm32::init(config);
-    let core_peri = cortex_m::Peripherals::take().unwrap();
+    let mut core_peri = cortex_m::Peripherals::take().unwrap();
 
     configure_mpu(core_peri.MPU, false, None);
+    core_peri.SCB.enable_icache();
 
     spawner
         .spawn(heartbeat::heartbeat_task(p.PE2.into()))

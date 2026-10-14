@@ -1,3 +1,4 @@
+use defmt::error;
 use embassy_executor::task;
 use embassy_stm32::bind_interrupts;
 use embassy_stm32::exti::{ExtiInput, InterruptHandler};
@@ -5,6 +6,7 @@ use embassy_stm32::gpio::Pull;
 use embassy_stm32::interrupt::typelevel::EXTI15_10 as IrqExti15_10;
 use embassy_stm32::peripherals::{EXTI12, PD12};
 use embassy_stm32::Peri;
+use embassy_time::{with_timeout, Duration};
 
 use crate::hardware::mdma::MdmaCh0;
 use crate::hardware::st7796::{St7796, HEIGHT, WIDTH};
@@ -449,9 +451,6 @@ pub async fn plasma_task(
     exti: Peri<'static, EXTI12>,
     mut mdma: MdmaCh0,
 ) {
-    use defmt::error;
-    use embassy_time::{with_timeout, Duration};
-
     let mut te = ExtiInput::new(te_pin, exti, Pull::None, TeIrqs);
 
     let mut scene = Scene::new();
@@ -502,12 +501,12 @@ pub async fn plasma_task(
                 compute_line(line(y as usize + 1), y + 1, frame, &scene);
             }
 
-            match with_timeout(Duration::from_millis(10), mdma.wait_complete()).await {
-                Ok(_) => {}
-                Err(_) => {
-                    error!("MDMA Timeout on line {}!", y);
-                    break;
-                }
+            if with_timeout(Duration::from_millis(10), mdma.wait_complete())
+                .await
+                .is_err()
+            {
+                error!("MDMA Timeout on line {}!", y);
+                break;
             }
         }
 

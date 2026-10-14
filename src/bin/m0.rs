@@ -29,10 +29,11 @@ async fn main(spawner: Spawner) {
     config.rcc = rcc_config();
 
     let p = embassy_stm32::init(config);
-    let core_peri = cortex_m::Peripherals::take().unwrap();
+        let mut core_peri = cortex_m::Peripherals::take().unwrap();
 
     let dma_buf_addr = core::ptr::addr_of!(uodu_kosmaras::plasma::DMA_BUFFERS) as u32;
     configure_mpu(core_peri.MPU, true, Some(dma_buf_addr));
+    core_peri.SCB.enable_icache();
 
     spawner
         .spawn(heartbeat::heartbeat_task(p.PE3.into()))
