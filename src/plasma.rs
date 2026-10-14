@@ -180,7 +180,12 @@ struct Scene {
 impl Scene {
     fn new() -> Self {
         let mut rng: u32 = 0x1234_5678;
-        let mut stars = [Star { x: 0, y: 0, phase: 0, kind: 0 }; NSTARS];
+        let mut stars = [Star {
+            x: 0,
+            y: 0,
+            phase: 0,
+            kind: 0,
+        }; NSTARS];
         for s in stars.iter_mut() {
             s.x = 2 + (next_rand(&mut rng) % (W as u32 - 4)) as u16;
             s.y = (next_rand(&mut rng) % (HORIZON as u32 - 30)) as u16;
@@ -202,7 +207,8 @@ impl Scene {
         for x in 0..W {
             let xi = x as u32;
             let a = self.sin_lut[((xi / 3).wrapping_add(frame >> 4) & 255) as usize] as u32;
-            let b = self.sin_lut[((xi * 5 / 4 + 90).wrapping_add(frame / 10) & 255) as usize] as u32;
+            let b =
+                self.sin_lut[((xi * 5 / 4 + 90).wrapping_add(frame / 10) & 255) as usize] as u32;
             let c = self.sin_lut[((xi * 2).wrapping_add(frame) & 255) as usize] as u32;
             let d = self.sin_lut[((xi * 3 + 37).wrapping_add(frame) & 255) as usize] as u32;
 
