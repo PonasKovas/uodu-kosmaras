@@ -6,7 +6,7 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use panic_probe as _;
 
-use uodu_kosmaras::current_regulator;
+use uodu_kosmaras::{current_regulator, peer_sync};
 use uodu_kosmaras::hardware::mpu_conf::configure_mpu;
 use uodu_kosmaras::hardware::rcc::rcc_config;
 use uodu_kosmaras::{heartbeat, verify_hardware_uid};
@@ -38,6 +38,10 @@ async fn main(spawner: Spawner) {
         .spawn(current_regulator::regulator_task(
             p.PE7, p.PE8, p.DAC1, p.OPAMP2,
         ))
+        .unwrap();
+
+            spawner
+        .spawn(peer_sync::peer_sync_task(p.PG3.into(), p.PG2.into()))
         .unwrap();
 
     {

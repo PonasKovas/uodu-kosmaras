@@ -21,7 +21,7 @@ use embassy_stm32::timer::simple_pwm::{PwmPin, SimplePwm};
 use embassy_stm32::{bind_interrupts, Peri};
 use embassy_time::Timer;
 use stm32_metapac as pac;
-use stm32_metapac::gpio::vals::{Moder, Ospeedr, Ot, Pupdr};
+use stm32_metapac::gpio::vals::{Idr, Moder, Ospeedr, Ot, Pupdr};
 use stm32_metapac::pssi::regs::{Cr, Icr};
 use stm32_metapac::pssi::vals;
 
@@ -63,20 +63,55 @@ pub struct Pssi16<'d> {
     dma: Channel<'d>,
     request: Request,
     clock_hz: u32,
+	rdy: RdyLine,
     _pwm: Option<SimplePwm<'d, TIM2>>,
+}
+
+fn gpio(port: u8) -> pac::gpio::Gpio {
+    // H7 GPIO ports: base 0x5802_0000, stride 0x400.
+    unsafe { pac::gpio::Gpio::from_ptr((0x5802_0000usize + 0x400 * port as usize) as *mut ()) }
 }
 
 fn set_af(port: u8, pin: u8, af: u8, pull: Pupdr) {
     let pin = pin as usize;
-    // H7 GPIO ports: base 0x5802_0000, stride 0x400.
-    let gpio =
-        unsafe { pac::gpio::Gpio::from_ptr((0x5802_0000usize + 0x400 * port as usize) as *mut ()) };
+    let gpio = gpio(port);
     gpio.moder().modify(|w| w.set_moder(pin, Moder::ALTERNATE));
     gpio.otyper().modify(|w| w.set_ot(pin, Ot::PUSH_PULL));
     gpio.ospeedr()
         .modify(|w| w.set_ospeedr(pin, Ospeedr::VERY_HIGH_SPEED));
     gpio.pupdr().modify(|w| w.set_pupdr(pin, pull));
     gpio.afr(pin / 8).modify(|w| w.set_afr(pin % 8, af));
+}
+
+/// Location of the RDY pin, so TX can sample the receiver's RDY as a plain GPIO.
+#[derive(Clone, Copy)]
+struct RdyLine {
+    port: u8,
+    pin: u8,
+    af: u8,
+}
+
+/// Switches the RDY pin to plain input while alive; restores AF mode on drop
+/// (also when the surrounding future is cancelled).
+struct RdyAsInput(RdyLine);
+
+impl RdyAsInput {
+    fn new(line: RdyLine) -> Self {
+        gpio(line.port)
+            .moder()
+            .modify(|w| w.set_moder(line.pin as usize, Moder::INPUT));
+        Self(line)
+    }
+
+    fn is_high(&self) -> bool {
+        gpio(self.0.port).idr().read().idr(self.0.pin as usize) == Idr::HIGH
+    }
+}
+
+impl Drop for RdyAsInput {
+    fn drop(&mut self) {
+        set_af(self.0.port, self.0.pin, self.0.af, Pupdr::PULL_DOWN);
+    }
 }
 
 macro_rules! af {
@@ -160,6 +195,12 @@ impl<'d> Pssi16<'d> {
         // PSSI shares the DCMI clock enable bit (AHB2ENR.DCMIEN).
         pac::RCC.ahb2enr().modify(|w| w.set_dcmien(true));
 
+		let rdy_line = RdyLine {
+            port: rdy.port(),
+            pin: rdy.pin(),
+            af: rdy.af_num(),
+        };
+
         af!(pdck, Pupdr::FLOATING);
         af!(de, Pupdr::PULL_DOWN);
         af!(rdy, Pupdr::PULL_DOWN);
@@ -208,6 +249,7 @@ impl<'d> Pssi16<'d> {
             dma,
             request,
             clock_hz: config.clock.0,
+			rdy: rdy_line,
             _pwm: pwm,
         }
     }
@@ -260,6 +302,14 @@ impl<'d> Pssi16<'d> {
                 TransferOptions::default(),
             )
         };
+                // Don't enable TX until the receiver's RDY is already high. Enabling
+        // while RDY rises corrupts the first sample (observed: frame shifted by one).
+        {
+            let rdy = RdyAsInput::new(self.rdy);
+            while !rdy.is_high() {
+                Timer::after_micros(20).await;
+            }
+        }
         pac::PSSI.cr().write_value(cr_value(true, true));
         transfer.await;
 

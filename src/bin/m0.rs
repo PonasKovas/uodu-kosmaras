@@ -13,7 +13,7 @@ use panic_probe as _;
 use uodu_kosmaras::hardware::mpu_conf::configure_mpu;
 use uodu_kosmaras::hardware::rcc::rcc_config;
 use uodu_kosmaras::hardware::st7796::St7796;
-use uodu_kosmaras::{heartbeat, power, verify_hardware_uid};
+use uodu_kosmaras::{heartbeat, peer_sync, power, verify_hardware_uid};
 
 embassy_stm32::bind_interrupts!(struct MdmaIrqs {
     MDMA => uodu_kosmaras::hardware::mdma::MdmaInterruptHandler;
@@ -50,8 +50,14 @@ async fn main(spawner: Spawner) {
         .spawn(heartbeat::heartbeat_task(p.PE3.into()))
         .unwrap();
 
+
+
     spawner
         .spawn(power::power_task(p.PG1, p.PG0, p.EXTI0))
+        .unwrap();
+
+        spawner
+        .spawn(peer_sync::peer_sync_task(p.PG2.into(), p.PG3.into()))
         .unwrap();
 
     let display = St7796::init(

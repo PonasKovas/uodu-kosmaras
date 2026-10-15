@@ -4,7 +4,7 @@ pub mod current_regulator;
 pub mod hardware;
 pub mod heartbeat;
 pub mod plasma;
-pub mod power;pub mod link_test;
+pub mod power;pub mod link_test;pub mod peer_sync;
 
 use defmt::info;
 
