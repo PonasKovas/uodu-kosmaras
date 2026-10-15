@@ -23,6 +23,13 @@ const EXPECTED_M0_UID: [u8; 12] = [
     0x33, 0x0, 0x10, 0x0, 0x19, 0x51, 0x31, 0x32, 0x34, 0x35, 0x32, 0x30,
 ];
 
+// Allocate the DMA ring buffer.
+static mut AUDIO_DMA_BUF: [u32; 512] = [0; 512];
+
+// Allocate the chunk buffer statically to prevent the `main` task future
+// from blowing up the executor's 4KB arena!
+static mut AUDIO_CHUNK: [u32; 256] = [0; 256];
+
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     verify_hardware_uid(EXPECTED_M0_UID, "M0");
@@ -61,16 +68,12 @@ async fn main(spawner: Spawner) {
         ))
         .unwrap();
 
-
-
-
-
-
     embassy_stm32::bind_interrupts!(struct DfsdmIrqs {
         DFSDM1_FLT3 => embassy_stm32::dfsdm::filter::InterruptHandler<DFSDM1, embassy_stm32::dfsdm::types::Flt3>;
+        DMA1_STREAM0 => embassy_stm32::dma::InterruptHandler<embassy_stm32::peripherals::DMA1_CH0>;
     });
 
-    let kernel = embassy_stm32::rcc::frequency::<DFSDM1>(); // 130 MHz with your rcc.rs
+    let kernel = embassy_stm32::rcc::frequency::<DFSDM1>(); // 130 MHz
     let div = CkoutDivider::from_frequency::<DFSDM1>(kernel, Hertz(3_072_000)).unwrap();
 
     let dfsdm = embassy_stm32::dfsdm::Dfsdm::new_ckout(p.DFSDM1, p.PB0, CkoutSource::System, div);
@@ -86,26 +89,24 @@ async fn main(spawner: Spawner) {
             tb.ch7.none(),
         )
     });
+
     let (trans, filters) = dfsdm.build(&dfsdm_common, |b| {
         b.ch1
             .build_spi_int(&dfsdm_common, InternalSpiMode::SpiFalling)
     });
 
-    // Configure a Sinc3 filter with OSR = 64 (standard for PDM audio)
     let params = embassy_stm32::dfsdm::config::FilterParameters::new(
         embassy_stm32::dfsdm::config::FilterOrder::Sinc3 { fosr: 64 },
         1,
     );
     let shift = embassy_stm32::dfsdm::config::DataRightShift::new(params.recommended_shift());
 
-    // Apply scaling shift and enable the transceiver
     let trans = trans.set_data_right_shift(shift).enable();
 
-    // Enable the filter without a DMA buffer for a quick test
     let mut filter = filters
         .flt3
         .build(&dfsdm_common, DfsdmIrqs)
-        .enable_no_dma(
+        .enable_reg_dma(
             &trans,
             [&trans],
             &FilterConfig {
@@ -119,40 +120,45 @@ async fn main(spawner: Spawner) {
             },
         );
 
-    info!("Starting audio capture...");
-    filter.regular.start_conversion();
+    // Create the ring buffer wrapper
+    let dma_buf = unsafe { &mut *core::ptr::addr_of_mut!(AUDIO_DMA_BUF) };
+    let mut dma_ring = filter.regular.ring_buffered(p.DMA1_CH0, DfsdmIrqs, dma_buf);
 
-    let mut count = 0;
+    info!("Starting DMA audio capture...");
+
+    // Always start the DMA engine BEFORE the peripheral it reads from to prevent instant overruns
+    dma_ring.start();
+    dma_ring.start_conversion();
+
+    let chunk = unsafe { &mut *core::ptr::addr_of_mut!(AUDIO_CHUNK) };
+    let mut total_samples = 0;
+
     let mut min = i32::MAX;
     let mut max = i32::MIN;
 
     loop {
-        match filter.regular.read().await {
-            Ok(result) => {
-                count += 1;
-                min = min.min(result.data);
-                max = max.max(result.data);
+        // `read` internally uses `read_exact` and returns the *remaining capacity*.
+        // We ignore the returned value with `Ok(_)` because `chunk` is guaranteed to be 100% full.
+        match dma_ring.read(chunk).await {
+            Ok(_) => {
+                for &word in chunk.iter() {
+                    let sample = embassy_stm32::dfsdm::RegularResult::from_word(word).data;
+                    min = min.min(sample);
+                    max = max.max(sample);
+                }
 
-                // Log amplitude every 4800 samples (~10 times a second at 48kHz)
-                if count % 4800 == 0 {
-                    info!("Audio amplitude (last 4800 samples): min={}, max={}", min, max);
+                total_samples += chunk.len();
+
+                if total_samples >= 4800 {
+                    info!("Audio amplitude (last {} samples): min={}, max={}", total_samples, min, max);
+                    total_samples = 0;
                     min = i32::MAX;
                     max = i32::MIN;
                 }
             }
-            Err(embassy_stm32::dfsdm::Error::Overrun) => {
-                // Overruns are totally expected at 48kHz interrupt rate without DMA
-                // due to the heavy background display task. We just ignore them for this simple test.
-            }
-            Err(_) => {
-                defmt::error!("DFSDM error");
+            Err(e) => {
+                defmt::error!("DMA Error: {}", defmt::Debug2Format(&e));
             }
         }
     }
-
-
-
-
-
-    // core::future::pending::<()>().await;
 }
