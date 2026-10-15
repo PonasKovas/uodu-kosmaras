@@ -63,7 +63,7 @@ pub struct Pssi16<'d> {
     dma: Channel<'d>,
     request: Request,
     clock_hz: u32,
-	rdy: RdyLine,
+    rdy: RdyLine,
     _pwm: Option<SimplePwm<'d, TIM2>>,
 }
 
@@ -191,11 +191,11 @@ impl<'d> Pssi16<'d> {
         d15: Peri<'d, impl D15Pin<PSSI>>,
         config: Config,
     ) -> Self {
-                embassy_stm32::rcc::enable_and_reset::<PSSI>();
+        embassy_stm32::rcc::enable_and_reset::<PSSI>();
         // PSSI shares the DCMI clock enable bit (AHB2ENR.DCMIEN).
         pac::RCC.ahb2enr().modify(|w| w.set_dcmien(true));
 
-		let rdy_line = RdyLine {
+        let rdy_line = RdyLine {
             port: rdy.port(),
             pin: rdy.pin(),
             af: rdy.af_num(),
@@ -239,9 +239,11 @@ impl<'d> Pssi16<'d> {
                 config.clock,
                 CountingMode::EdgeAlignedUp,
             );
-            {let mut ch = pwm.ch4();
-            ch.set_duty_cycle_fraction(1, 2);
-            ch.enable()};
+            {
+                let mut ch = pwm.ch4();
+                ch.set_duty_cycle_fraction(1, 2);
+                ch.enable()
+            };
             pwm
         });
 
@@ -249,7 +251,7 @@ impl<'d> Pssi16<'d> {
             dma,
             request,
             clock_hz: config.clock.0,
-			rdy: rdy_line,
+            rdy: rdy_line,
             _pwm: pwm,
         }
     }
@@ -302,7 +304,7 @@ impl<'d> Pssi16<'d> {
                 TransferOptions::default(),
             )
         };
-                // Don't enable TX until the receiver's RDY is already high. Enabling
+        // Don't enable TX until the receiver's RDY is already high. Enabling
         // while RDY rises corrupts the first sample (observed: frame shifted by one).
         {
             let rdy = RdyAsInput::new(self.rdy);

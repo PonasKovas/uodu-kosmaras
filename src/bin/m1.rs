@@ -6,9 +6,9 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use panic_probe as _;
 
-use uodu_kosmaras::{current_regulator, peer_sync};
 use uodu_kosmaras::hardware::mpu_conf::configure_mpu;
 use uodu_kosmaras::hardware::rcc::rcc_config;
+use uodu_kosmaras::{current_regulator, peer_sync};
 use uodu_kosmaras::{heartbeat, verify_hardware_uid};
 
 const EXPECTED_M1_UID: [u8; 12] = [
@@ -40,7 +40,7 @@ async fn main(spawner: Spawner) {
         ))
         .unwrap();
 
-            spawner
+    spawner
         .spawn(peer_sync::peer_sync_task(p.PG3.into(), p.PG2.into()))
         .unwrap();
 
@@ -51,9 +51,25 @@ async fn main(spawner: Spawner) {
             p.PSSI,
             p.DMA2_CH0,
             None,
-            p.PA6, p.PA4, p.PG9,
-            p.PC6, p.PC7, p.PC8, p.PC9, p.PC11, p.PD3, p.PE5, p.PB9,
-            p.PC10, p.PC12, p.PD6, p.PD2, p.PF11, p.PD13, p.PA5, p.PF10,
+            p.PA6,
+            p.PA4,
+            p.PG9,
+            p.PC6,
+            p.PC7,
+            p.PC8,
+            p.PC9,
+            p.PC11,
+            p.PD3,
+            p.PE5,
+            p.PB9,
+            p.PC10,
+            p.PC12,
+            p.PD6,
+            p.PD2,
+            p.PF11,
+            p.PD13,
+            p.PA5,
+            p.PF10,
             PssiConfig::default(),
         );
         spawner.spawn(link_test::m1_tx_task(pssi)).unwrap();

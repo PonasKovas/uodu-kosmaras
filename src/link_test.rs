@@ -15,7 +15,7 @@ static mut M0_RX: Frame = Frame([0; N]);
 /// M1: sends a counting pattern, one frame every 100 ms.
 #[task]
 pub async fn m1_tx_task(mut pssi: Pssi16<'static>) {
-	    peer_sync::wait_peer_ready().await;
+    peer_sync::wait_peer_ready().await;
     let buf = unsafe { &mut (*core::ptr::addr_of_mut!(M1_TX)).0 };
     let mut base: u16 = 0;
     loop {
@@ -35,7 +35,7 @@ pub async fn m1_tx_task(mut pssi: Pssi16<'static>) {
 /// M0: receives frames and checks the counting pattern.
 #[task]
 pub async fn m0_rx_task(mut pssi: Pssi16<'static>) {
-	    peer_sync::wait_peer_ready().await;
+    peer_sync::wait_peer_ready().await;
 
     let buf = unsafe { &mut (*core::ptr::addr_of_mut!(M0_RX)).0 };
     loop {
@@ -51,7 +51,7 @@ pub async fn m0_rx_task(mut pssi: Pssi16<'static>) {
                 if bad == 0 {
                     info!("rx frame ok base={}", base);
                 } else {
-                                                            error!(
+                    error!(
                         "rx frame base={} mismatches={}/{} head={=u16:x} {=u16:x} {=u16:x} {=u16:x} tail={=u16:x} {=u16:x}",
                         base,
                         bad,

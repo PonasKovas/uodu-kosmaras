@@ -50,13 +50,11 @@ async fn main(spawner: Spawner) {
         .spawn(heartbeat::heartbeat_task(p.PE3.into()))
         .unwrap();
 
-
-
     spawner
         .spawn(power::power_task(p.PG1, p.PG0, p.EXTI0))
         .unwrap();
 
-        spawner
+    spawner
         .spawn(peer_sync::peer_sync_task(p.PG2.into(), p.PG3.into()))
         .unwrap();
 
@@ -74,8 +72,6 @@ async fn main(spawner: Spawner) {
         ))
         .unwrap();
 
-
-
     {
         use uodu_kosmaras::hardware::pssi::{ClockOut, Config as PssiConfig, Pssi16};
         use uodu_kosmaras::link_test;
@@ -83,10 +79,29 @@ async fn main(spawner: Spawner) {
         let pssi = Pssi16::new(
             p.PSSI,
             p.DMA2_CH0,
-            Some(ClockOut { tim: p.TIM2, pin: p.PA3 }),
-            p.PA6, p.PA4, p.PG9,
-            p.PC6, p.PC7, p.PC8, p.PC9, p.PC11, p.PD3, p.PE5, p.PB9,
-            p.PC10, p.PC12, p.PD6, p.PD2, p.PF11, p.PD13, p.PA5, p.PF10,
+            Some(ClockOut {
+                tim: p.TIM2,
+                pin: p.PA3,
+            }),
+            p.PA6,
+            p.PA4,
+            p.PG9,
+            p.PC6,
+            p.PC7,
+            p.PC8,
+            p.PC9,
+            p.PC11,
+            p.PD3,
+            p.PE5,
+            p.PB9,
+            p.PC10,
+            p.PC12,
+            p.PD6,
+            p.PD2,
+            p.PF11,
+            p.PD13,
+            p.PA5,
+            p.PF10,
             PssiConfig::default(),
         );
         spawner.spawn(link_test::m0_rx_task(pssi)).unwrap();
@@ -127,22 +142,19 @@ async fn main(spawner: Spawner) {
 
     let trans = trans.set_data_right_shift(shift).enable();
 
-    let mut filter = filters
-        .flt3
-        .build(&dfsdm_common, DfsdmIrqs)
-        .enable_reg_dma(
-            &trans,
-            [&trans],
-            &FilterConfig {
-                filter_params: params,
-                enable_continuous_regular: true,
-                enable_fast_regular: false,
-                enable_regular_sync: false,
-                enable_injected_sync: false,
-                enable_injected_scanning: false,
-                trigger: embassy_stm32::dfsdm::InjectedTrigger::Disabled,
-            },
-        );
+    let mut filter = filters.flt3.build(&dfsdm_common, DfsdmIrqs).enable_reg_dma(
+        &trans,
+        [&trans],
+        &FilterConfig {
+            filter_params: params,
+            enable_continuous_regular: true,
+            enable_fast_regular: false,
+            enable_regular_sync: false,
+            enable_injected_sync: false,
+            enable_injected_scanning: false,
+            trigger: embassy_stm32::dfsdm::InjectedTrigger::Disabled,
+        },
+    );
 
     // Create the ring buffer wrapper
     let dma_buf = unsafe { &mut *core::ptr::addr_of_mut!(AUDIO_DMA_BUF) };
@@ -174,7 +186,10 @@ async fn main(spawner: Spawner) {
                 total_samples += chunk.len();
 
                 if total_samples >= 4800 {
-                    info!("Audio amplitude (last {} samples): min={}, max={}", total_samples, min, max);
+                    info!(
+                        "Audio amplitude (last {} samples): min={}, max={}",
+                        total_samples, min, max
+                    );
                     total_samples = 0;
                     min = i32::MAX;
                     max = i32::MIN;
