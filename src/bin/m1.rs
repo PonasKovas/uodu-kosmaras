@@ -40,5 +40,20 @@ async fn main(spawner: Spawner) {
         ))
         .unwrap();
 
+    {
+        use uodu_kosmaras::hardware::pssi::{ClockOut, Config as PssiConfig, Pssi16};
+        use uodu_kosmaras::link_test;
+        let pssi = Pssi16::new(
+            p.PSSI,
+            p.DMA2_CH0,
+            None,
+            p.PA6, p.PA4, p.PG9,
+            p.PC6, p.PC7, p.PC8, p.PC9, p.PC11, p.PD3, p.PE5, p.PB9,
+            p.PC10, p.PC12, p.PD6, p.PD2, p.PF11, p.PD13, p.PA5, p.PF10,
+            PssiConfig::default(),
+        );
+        spawner.spawn(link_test::m1_tx_task(pssi)).unwrap();
+    }
+
     core::future::pending::<()>().await;
 }

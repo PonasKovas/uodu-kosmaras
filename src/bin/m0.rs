@@ -68,6 +68,24 @@ async fn main(spawner: Spawner) {
         ))
         .unwrap();
 
+
+
+    {
+        use uodu_kosmaras::hardware::pssi::{ClockOut, Config as PssiConfig, Pssi16};
+        use uodu_kosmaras::link_test;
+
+        let pssi = Pssi16::new(
+            p.PSSI,
+            p.DMA2_CH0,
+            Some(ClockOut { tim: p.TIM2, pin: p.PA3 }),
+            p.PA6, p.PA4, p.PG9,
+            p.PC6, p.PC7, p.PC8, p.PC9, p.PC11, p.PD3, p.PE5, p.PB9,
+            p.PC10, p.PC12, p.PD6, p.PD2, p.PF11, p.PD13, p.PA5, p.PF10,
+            PssiConfig::default(),
+        );
+        spawner.spawn(link_test::m0_rx_task(pssi)).unwrap();
+    }
+
     embassy_stm32::bind_interrupts!(struct DfsdmIrqs {
         DFSDM1_FLT3 => embassy_stm32::dfsdm::filter::InterruptHandler<DFSDM1, embassy_stm32::dfsdm::types::Flt3>;
         DMA1_STREAM0 => embassy_stm32::dma::InterruptHandler<embassy_stm32::peripherals::DMA1_CH0>;
